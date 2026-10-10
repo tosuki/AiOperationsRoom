@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from backend.config import ROOT
+from backend import gemini
 
 
 EVENTS = ("SessionStart", "UserPromptSubmit", "Stop", "SubagentStart", "SubagentStop", "SessionEnd")
@@ -141,9 +142,13 @@ def serve(data_dir: str | None, port: int = 8765) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="ai-operations-room")
     commands = parser.add_subparsers(dest="action", required=True)
+    default_provider = "gemini" if gemini.gemini_data_dir().exists() else "claude"
     for name in ("install", "remove"):
         item = commands.add_parser(f"hooks-{name}")
-        item.add_argument("--settings", type=Path, default=settings_path())
+        item.add_argument("--provider", choices=["gemini", "claude"], default=default_provider,
+                          help="Provedor de IA (gemini ou claude).")
+        item.add_argument("--settings", type=Path, default=None,
+                          help="Caminho personalizado de configurações/hooks.")
     demo = commands.add_parser("demo")
     demo.add_argument("--data-dir", type=Path, default=Path.home() / ".ai-operations-room-demo")
     demo.add_argument("--serve", action="store_true")
@@ -153,9 +158,15 @@ def main() -> int:
     server.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if args.action == "hooks-install":
-        install_hooks(args.settings)
+        if args.provider == "gemini":
+            gemini.install_hooks(args.settings)
+        else:
+            install_hooks(args.settings or settings_path())
     elif args.action == "hooks-remove":
-        remove_hooks(args.settings)
+        if args.provider == "gemini":
+            gemini.remove_hooks(args.settings)
+        else:
+            remove_hooks(args.settings or settings_path())
     elif args.action == "demo":
         seed_demo(args.data_dir)
         if args.serve:

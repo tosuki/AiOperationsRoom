@@ -8,18 +8,20 @@ import sqlite3
 import threading
 
 from backend.config import events_path
-from backend import runs
+from backend import gemini, runs
 
 _lock = threading.Lock()
 
 
 def ingest(con: sqlite3.Connection) -> int:
     path = events_path()
-    if not path.exists():
-        return 0
     with _lock:
         # Serialize the cursor across server processes as well as threads.
         con.execute("BEGIN IMMEDIATE")
+        gemini.sync_gemini(con)
+        if not path.exists():
+            con.commit()
+            return 0
         row = con.execute(
             "SELECT valor FROM ingestao WHERE chave = 'events_offset'"
         ).fetchone()
@@ -89,4 +91,5 @@ def ingest(con: sqlite3.Connection) -> int:
             "INSERT INTO ingestao (chave, valor) VALUES ('events_prefix', ?) "
             "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor", (prefix,)
         )
+        con.commit()
         return processed

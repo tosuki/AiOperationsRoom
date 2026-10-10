@@ -1,22 +1,29 @@
 # Arquitetura
 
 ```text
-Claude Code ──hooks──> events.jsonl ──> SQLite ──> FastAPI em 127.0.0.1 ──> navegador
+Gemini (agy)  ──[observer / hooks]──┐
+                                     ├──> events.jsonl / SQLite ──> FastAPI em 127.0.0.1 ──> navegador
+Claude Code   ──[hooks locais]──────┘
 ```
 
-O hook é independente do servidor. Cada evento entra em uma fila JSONL local e a API consome as linhas completas na próxima consulta. O cursor de leitura e uma impressão digital do prefixo já lido ficam no SQLite. Quando o arquivo é substituído ou truncado, a leitura recomeça; o identificador do evento impede duplicação. A detecção usa os primeiros 4096 bytes do trecho lido e pressupõe que uma fila substituída tenha prefixo diferente.
+O sistema possui duas formas de ingestão complementares e desacopladas:
+1. **Gemini Observer (Modo Passivo / Read-only):** Lê diretamente o banco local do Gemini (`~/.gemini/antigravity-cli/conversation_summaries.db`) e o diretório de presença de locks (`~/.gemini/antigravity-cli/presence/*.lock`), sem exigir configuração de hooks ou alteração no client.
+2. **Fila de Eventos (Hooks):** Hooks executados pelo Gemini (`~/.gemini/config/hooks.json`) ou pelo Claude Code (`~/.claude/settings.json`) adicionam metadados atômicos na fila `events.jsonl`, consumida pelo FastAPI.
 
 ## Dados
 
 - `projeto`: nome e um diretório local para associação por `cwd`.
 - `sessao`: último metadado recebido por sessão, usado pela tela de mapeamento.
-- `evento`: histórico deduplicado, sem texto de conversa.
+- `evento`: histórico deduplicado, sem texto de conversa ou código.
 - `execucao`: projeção da sessão principal e dos subagentes.
 
-Estados: `trabalhando`, `aguardando`, `delegando`, `concluida` e `orfa`. `SessionStart` cria o principal em `aguardando`; `UserPromptSubmit` o põe em `trabalhando`; `SubagentStart` cria a filha e põe o principal em `delegando`. `SubagentStop` conclui a filha e devolve o principal a `trabalhando` quando ela era a última ativa. Em `Stop`, uma filha ativa ausente da lista `background_tasks` é concluída como `interrompida`; sem a lista, nenhuma filha é encerrada por inferência. O principal fica `delegando` enquanto houver filha ativa e `aguardando` caso contrário. `SessionEnd` conclui toda a sessão. Sem evento de encerramento, a sessão é marcada `orfa` se o PID registrado em `~/.claude/sessions` morreu ou, sem registro, após dez minutos sem sinal. Eventos mais antigos não substituem um estado mais recente.
-
-O painel conta execuções em uma janela selecionável de 6, 12 ou 24 horas. A sala mantém execuções ativas e concluídas há até 12 horas; apenas principais sem filhas encerradas em menos de 30 segundos não entram na sala. Dados fictícios da demo ficam fora da reconciliação de processos.
+### Estados e Ciclo de Vida
+- **`trabalhando`:** agente executando tarefas ou aguardando resposta de modelo (senta na mesa e digita).
+- **`delegando`:** agente principal coordenando subagentes ativos.
+- **`aguardando`:** sessão pronta esperando novo comando do usuário.
+- **`concluida`:** execução encerrada (permanece na convivência por até 12 horas).
+- **`orfa`:** processo encerrado abruptamente ou lock perdido sem sinal de encerramento.
 
 ## Privacidade e rede
 
-O backend só escuta em `127.0.0.1`. O hook filtra campos conhecidos de conteúdo e registra somente metadados necessários para a projeção. Não há envio de dados para serviços externos.
+O backend só escuta em `127.0.0.1`. Nem o observer nem os hooks capturam prompts, respostas de modelo ou arquivos de código. Não há transmissão de dados para serviços de nuvem ou externos.

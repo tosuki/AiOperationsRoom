@@ -9,3 +9,4 @@ __pycache__/
 *.jsonl
 .env
 PLANO_DO_PROJETO.md
+*.egg-info/

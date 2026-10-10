@@ -9,6 +9,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from backend import gemini
 from backend.config import data_dir
 
 
@@ -24,7 +25,12 @@ def process_alive(pid: object) -> bool:
     if number <= 0:
         return False
     if sys.platform != "win32":
-        return Path(f"/proc/{number}").exists()
+        try:
+            os.kill(number, 0)
+            return True
+        except OSError as err:
+            import errno
+            return err.errno == errno.EPERM
 
     import ctypes
     from ctypes import wintypes
@@ -49,17 +55,23 @@ def process_alive(pid: object) -> bool:
 def living_sessions() -> dict[str, bool]:
     found: dict[str, bool] = {}
     folder = sessions_dir()
-    if not folder.is_dir():
-        return found
-    for path in folder.glob("*.json"):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8-sig"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict) or not isinstance(data.get("sessionId"), str):
-            continue
-        sid = data["sessionId"]
-        found[sid] = found.get(sid, False) or process_alive(data.get("pid"))
+    if folder.is_dir():
+        for path in folder.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8-sig"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(data, dict) or not isinstance(data.get("sessionId"), str):
+                continue
+            sid = data["sessionId"]
+            found[sid] = found.get(sid, False) or process_alive(data.get("pid"))
+
+    gemini_presence = gemini.gemini_presence_dir()
+    if gemini_presence.is_dir():
+        for path in gemini_presence.glob("*.lock"):
+            sid = path.stem
+            found[sid] = gemini.is_session_active(sid)
+
     return found
 
 

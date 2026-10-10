@@ -48,7 +48,7 @@
   /* ---------------------------------------------------------- pessoas */
 
   // O contorno · S/s pele · R/r cabelo · E olho · T/t camisa · P calça ·
-  // B sapato · H/h fone (só o Claude principal)
+  // B sapato · H/h fone (só o Gemini principal)
   const CABECAS = {
     frente: {
       curto: [
@@ -167,7 +167,7 @@
     return linhas;
   }
 
-  const COR_FIXA = { O: '#1A1520', E: '#1A1520', B: '#15121A', H: '#9B5CFF', h: '#5B2BB0' };
+  const COR_FIXA = { O: '#1A1520', E: '#1A1520', B: '#15121A', H: '#38BDF8', h: '#0284C7' };
   const CLASSE_VAR = { S: 'pp-pele', s: 'pp-pele-s', R: 'pp-cabelo', r: 'pp-cabelo-s', T: 'pp-camisa', t: 'pp-camisa-s', P: 'pp-calca' };
 
   // aparência: pele, cabelo, camisa e calça. Camisas em tons fechados e
